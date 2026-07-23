@@ -1,0 +1,19 @@
+{
+  "name": "release-agent",
+  "version": "0.1.0",
+  "description": "Slack-based release management agent for GitHub + GitHub Actions",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.21.4",
+    "@octokit/rest": "^20.1.1",
+    "pg": "^8.13.1",
+    "dotenv": "^16.4.5",
+    "js-yaml": "^4.1.0",
+    "node-fetch": "^2.7.0"
+  }
+}
