@@ -1,0 +1,23 @@
+# Default checklist applied to every release cut via /release cut.
+# Add/remove items here — no code changes needed.
+# `id` must be a short, stable, unique slug (used as the Slack button action_id).
+
+default:
+  - id: qa_signoff
+    label: "QA sign-off"
+  - id: security_review
+    label: "Security review (if release touches auth/data handling)"
+  - id: docs_updated
+    label: "Docs / changelog updated"
+  - id: staging_verified
+    label: "Verified on staging"
+  - id: oncall_notified
+    label: "On-call engineer notified of release window"
+
+# Example of a lighter checklist for hotfixes — wire this up in src/db.js
+# createRelease() if you want per-release-type checklists.
+hotfix:
+  - id: qa_smoke_test
+    label: "Smoke test passed"
+  - id: oncall_notified
+    label: "On-call engineer notified"
