@@ -25,6 +25,13 @@ const app = new App({
 registerCommands(app);
 registerInteractions(app);
 
+// Bolt's default error wrapping can hide the real cause behind a generic
+// "unhandled error after ack()" message. This logs the full error so it's
+// visible in Render's Logs tab.
+app.error(async (error) => {
+  console.error("Bolt global error handler caught:", error);
+});
+
 receiver.app.use("/webhooks", createWebhookRouter(app.client));
 
 receiver.app.get("/healthz", (req, res) => res.json({ ok: true }));
