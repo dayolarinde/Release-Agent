@@ -19,6 +19,16 @@ function getClient() {
         // on a server like Render, with no browser available.
         gitHubToken: process.env.COPILOT_GITHUB_TOKEN,
       });
+
+      // IMPORTANT: Node's EventEmitter throws and crashes the process if
+      // an 'error' event fires with zero listeners attached. Without this,
+      // any hiccup in the underlying Copilot CLI subprocess (crash, broken
+      // pipe, etc.) takes down the entire backend, not just the current
+      // request. This is what was silently killing the whole service.
+      client.on("error", (err) => {
+        console.error("CopilotClient emitted an error (subprocess-level):", err);
+      });
+
       await client.start();
       return client;
     })();
@@ -31,7 +41,7 @@ function getClient() {
  * Opens a fresh session per call and disconnects it when done, so sessions
  * don't accumulate across changelog drafts / failure summaries.
  */
-async function runPrompt(prompt) {
+async function runPrompt(prompt, timeoutMs = 30000) {
   const client = await getClient();
 
   const session = await client.createSession({
@@ -40,18 +50,37 @@ async function runPrompt(prompt) {
   });
 
   let output = "";
+  let settled = false;
 
   const done = new Promise((resolve, reject) => {
     session.on("assistant.message", (event) => {
       output += event.data.content;
     });
-    session.on("session.idle", () => resolve());
-    session.on("error", (err) => reject(err));
+    session.on("session.idle", () => {
+      settled = true;
+      resolve();
+    });
+    session.on("error", (err) => {
+      settled = true;
+      reject(err);
+    });
   });
 
-  await session.send({ prompt });
-  await done;
-  await session.disconnect();
+  const timeout = new Promise((_, reject) => {
+    setTimeout(() => {
+      if (!settled) reject(new Error(`Copilot session timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    await session.send({ prompt });
+    await Promise.race([done, timeout]);
+  } finally {
+    // Always attempt to disconnect, even on failure/timeout, so sessions
+    // don't leak. Swallow disconnect errors — we already have the real
+    // error (if any) from above.
+    await session.disconnect().catch(() => {});
+  }
 
   return output.trim();
 }
