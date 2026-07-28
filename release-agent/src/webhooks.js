@@ -114,3 +114,11 @@ function createWebhookRouter(slackClient) {
 }
 
 module.exports = { createWebhookRouter };
+
+Adobe Acrobat
+
+
+Summarize this
+
+
+Ask AI Assistant
