@@ -54,11 +54,3 @@ receiver.app.get("/healthz", (req, res) => res.json({ ok: true }));
   await app.start(port);
   console.log(`⚡️ release-agent running on port ${port}`);
 })();
-
-Adobe Acrobat
-
-
-Summarize this
-
-
-Ask AI Assistant
