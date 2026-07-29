@@ -23,18 +23,30 @@ function createWebhookRouter(slackClient) {
   const router = express.Router();
 
   // event_type: "deploy_started" | "deploy_succeeded" | "deploy_failed" | "health_check_failed"
-  // payload: { tag, detail (optional log excerpt) }
+  // payload: { branch, detail (optional log excerpt) }
+  //
+  // "branch" identifies which release this event belongs to -- this is
+  // what makes multiple concurrent releases work. It comes straight from
+  // GitHub Actions' own context (github.ref_name for tag pushes,
+  // github.event.workflow_run.head_branch for deploy status), so no
+  // extra plumbing is needed on the Actions side beyond what's already
+  // in release-events.yml.
   router.post("/deploy-event", async (req, res) => {
     if (!verifySignature(req)) {
       return res.status(401).json({ error: "invalid signature" });
     }
 
     try {
-      const { event_type, tag, detail } = req.body;
-      const release = await db.getCurrentRelease();
+      const { event_type, branch, detail } = req.body;
+
+      if (!branch) {
+        return res.status(400).json({ error: "payload missing required 'branch' field" });
+      }
+
+      const release = await db.getActiveReleaseByBranch(branch);
 
       if (!release) {
-        return res.status(404).json({ error: "no active release found for this event" });
+        return res.status(404).json({ error: `no active release found for branch "${branch}"` });
       }
 
       await db.logDeployEvent(release.id, event_type, detail);
@@ -44,14 +56,14 @@ function createWebhookRouter(slackClient) {
         await slackClient.chat.postMessage({
           channel: release.slack_channel,
           thread_ts: release.slack_thread_ts,
-          text: `:hourglass_flowing_sand: Deploy started for release #${release.id} (${tag || "unreleased"}).`,
+          text: `:hourglass_flowing_sand: Deploy started for release #${release.id} (\`${branch}\`).`,
         });
       } else if (event_type === "deploy_succeeded") {
         await db.setReleaseStatus(release.id, "deployed");
         await slackClient.chat.postMessage({
           channel: release.slack_channel,
           thread_ts: release.slack_thread_ts,
-          text: `:white_check_mark: Release #${release.id} deployed successfully.`,
+          text: `:white_check_mark: Release #${release.id} (\`${branch}\`) deployed successfully.`,
         });
       } else if (event_type === "deploy_failed" || event_type === "health_check_failed") {
         await db.setReleaseStatus(release.id, "failed");
@@ -78,7 +90,7 @@ function createWebhookRouter(slackClient) {
               type: "section",
               text: {
                 type: "mrkdwn",
-                text: `:rotating_light: *Deploy issue detected for release #${release.id}*\n${summary}`,
+                text: `:rotating_light: *Deploy issue detected for release #${release.id} (\`${branch}\`)*\n${summary}`,
               },
             },
             {

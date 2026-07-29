@@ -52,10 +52,16 @@ where the local filesystem is usually wiped on each deploy.
 
 ## Slack commands
 
-- `/release cut` — cut a new release: fetches merged PRs since last tag, drafts a changelog,
-  posts it to the release channel as a thread, and opens the approval checklist.
-- `/release status` — shows current release state: checklist progress, deploy status.
-- `/release rollback` — manually propose a rollback for the current release (posts a
+Releases are scoped to a **branch name** (e.g. a release branch cut from `main`), so multiple releases
+can be in flight at once without crossing wires. Every command below takes the branch name as an
+argument, except `/release status` with no argument, which lists everything currently active.
+
+- `/release cut <branch>` — cut a new release for that branch: fetches PRs merged into it, drafts a
+  changelog, posts it to the release channel as a thread, and opens the approval checklist. Fails
+  clearly if that branch doesn't exist, or if it already has an active release in progress.
+- `/release status [branch]` — with a branch name, shows that release's checklist progress and
+  deploy status. Without one, lists every release currently active across all branches.
+- `/release rollback <branch>` — manually propose a rollback for that branch's active release (posts a
   confirm button; nothing executes without a click).
 
 ## Customizing the checklist
@@ -64,6 +70,17 @@ Edit `config/checklist.yaml`. Each release type maps to a list of required check
 No code changes needed to add/remove items.
 
 ## Design choices worth knowing
+
+- **Releases are scoped by branch, not global.** Each release is tied to a specific branch name, and
+  a partial unique index in Postgres enforces at most one *active* release per branch at a time (past,
+  finished releases on that same branch don't count against this). This is what allows multiple release
+  branches to be worked on simultaneously without the bot mixing up their changelogs, checklists, or
+  deploy events.
+- **Migration note:** if you're updating from an earlier version of this project that didn't have
+  branch-scoped releases, `initSchema()` in `src/db.js` will automatically add the new `branch` column
+  to an existing `releases` table and backfill old rows with a placeholder value — but if more than one
+  *old, still-active* release exists at deploy time, the new uniqueness constraint could fail to apply.
+  If that happens, manually mark old test releases as `deployed` or `rolled_back` in the database first.
 
 - **Rollback is always human-confirmed.** The agent will detect a failed deploy or health
   check and post a "Roll back now?" button, but will not execute a rollback on its own.

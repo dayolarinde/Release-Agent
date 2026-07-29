@@ -122,4 +122,5 @@ async function shutdown() {
     clientPromise = null;
   }
 }
+
 module.exports = { draftChangelog, summarizeFailure, shutdown };

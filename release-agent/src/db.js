@@ -10,10 +10,14 @@ const pool = new Pool({
   ssl: process.env.PGSSL === "false" ? false : { rejectUnauthorized: false },
 });
 
+// Statuses that mean "this release is finished, no longer active."
+const TERMINAL_STATUSES = ["deployed", "rolled_back"];
+
 async function initSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS releases (
       id SERIAL PRIMARY KEY,
+      branch TEXT,
       tag TEXT,
       checklist_type TEXT DEFAULT 'default',
       status TEXT DEFAULT 'drafting',
@@ -22,6 +26,16 @@ async function initSchema() {
       slack_thread_ts TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    -- Safe for existing deployments: adds the column if this table
+    -- already existed from before branch-scoped releases were introduced.
+    ALTER TABLE releases ADD COLUMN IF NOT EXISTS branch TEXT;
+
+    -- Backfill any pre-existing rows (from before this change) with a
+    -- placeholder so the NOT NULL constraint below can be applied safely.
+    UPDATE releases SET branch = 'unspecified-legacy' WHERE branch IS NULL;
+
+    ALTER TABLE releases ALTER COLUMN branch SET NOT NULL;
 
     CREATE TABLE IF NOT EXISTS checklist_items (
       id SERIAL PRIMARY KEY,
@@ -40,6 +54,14 @@ async function initSchema() {
       detail TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    -- Only one active (non-terminal) release per branch at a time. This is
+    -- a partial unique index rather than a plain UNIQUE constraint, since
+    -- the same branch name can have many *finished* releases over time --
+    -- it just can't have more than one *active* one simultaneously.
+    CREATE UNIQUE INDEX IF NOT EXISTS one_active_release_per_branch
+      ON releases (branch)
+      WHERE status NOT IN ('deployed', 'rolled_back');
   `);
 }
 
@@ -51,14 +73,30 @@ function loadChecklistConfig() {
   return yaml.load(raw);
 }
 
-async function createRelease({ tag, checklistType = "default", slackChannel, slackThreadTs, changelog }) {
-  const { rows } = await pool.query(
-    `INSERT INTO releases (tag, checklist_type, slack_channel, slack_thread_ts, changelog, status)
-     VALUES ($1, $2, $3, $4, $5, 'awaiting_approval')
-     RETURNING id`,
-    [tag, checklistType, slackChannel, slackThreadTs, changelog]
-  );
-  const releaseId = rows[0].id;
+async function createRelease({ branch, tag, checklistType = "default", slackChannel, slackThreadTs, changelog }) {
+  if (!branch) {
+    throw new Error("createRelease requires a branch name");
+  }
+
+  let releaseId;
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO releases (branch, tag, checklist_type, slack_channel, slack_thread_ts, changelog, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'awaiting_approval')
+       RETURNING id`,
+      [branch, tag, checklistType, slackChannel, slackThreadTs, changelog]
+    );
+    releaseId = rows[0].id;
+  } catch (err) {
+    // Postgres unique_violation, thrown by the partial index above when a
+    // branch already has an active release.
+    if (err.code === "23505") {
+      throw new Error(
+        `Branch "${branch}" already has an active release in progress. Use /release status ${branch} to check it, or wait until it's deployed/rolled back before cutting a new one.`
+      );
+    }
+    throw err;
+  }
 
   const config = loadChecklistConfig();
   const items = config[checklistType] || config.default;
@@ -86,12 +124,30 @@ async function getRelease(releaseId) {
   return release;
 }
 
-async function getCurrentRelease() {
+/**
+ * The active (non-terminal) release for a specific branch, or null if
+ * that branch has no release currently in flight. This is the
+ * branch-scoped replacement for the old singular getCurrentRelease().
+ */
+async function getActiveReleaseByBranch(branch) {
   const { rows } = await pool.query(
-    `SELECT * FROM releases WHERE status != 'deployed' AND status != 'rolled_back'
-     ORDER BY created_at DESC LIMIT 1`
+    `SELECT * FROM releases WHERE branch = $1 AND status NOT IN ('deployed', 'rolled_back')
+     ORDER BY created_at DESC LIMIT 1`,
+    [branch]
   );
   return rows.length > 0 ? getRelease(rows[0].id) : null;
+}
+
+/**
+ * All active (non-terminal) releases across every branch -- useful for a
+ * status overview when the person doesn't specify a branch.
+ */
+async function getAllActiveReleases() {
+  const { rows } = await pool.query(
+    `SELECT * FROM releases WHERE status NOT IN ('deployed', 'rolled_back')
+     ORDER BY created_at DESC`
+  );
+  return Promise.all(rows.map((r) => getRelease(r.id)));
 }
 
 async function markChecklistItem(releaseId, itemId, doneBy) {
@@ -128,10 +184,12 @@ module.exports = {
   initSchema,
   createRelease,
   getRelease,
-  getCurrentRelease,
+  getActiveReleaseByBranch,
+  getAllActiveReleases,
   markChecklistItem,
   isChecklistComplete,
   setReleaseStatus,
   logDeployEvent,
   loadChecklistConfig,
+  TERMINAL_STATUSES,
 };

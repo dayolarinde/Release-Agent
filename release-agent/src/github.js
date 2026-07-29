@@ -5,27 +5,27 @@ const owner = process.env.GITHUB_OWNER;
 const repo = process.env.GITHUB_REPO;
 
 /**
- * Returns merged PRs since the most recent tag (or all recent merged PRs
- * if no tags exist yet), each with title, number, author, and labels.
+ * Returns merged PRs whose base branch is the given release branch (e.g.
+ * "release/2026-08-01"), each with title, number, author, and labels.
+ *
+ * Note: this intentionally does not filter by "since the last tag" the way
+ * an earlier main-only version of this function did -- tags are usually
+ * repo-wide, not branch-specific, so that filter doesn't map cleanly onto
+ * a per-branch release flow. If you later want "since the last tag on
+ * this branch specifically," that needs walking the branch's commit
+ * history for reachable tags, which is a heavier API call than this POC
+ * currently makes.
  */
-async function getMergedPRsSinceLastTag() {
-  const { data: tags } = await octokit.repos.listTags({ owner, repo, per_page: 1 });
-  let sinceDate = null;
-
-  if (tags.length > 0) {
-    const { data: tagCommit } = await octokit.repos.getCommit({
-      owner,
-      repo,
-      ref: tags[0].commit.sha,
-    });
-    sinceDate = tagCommit.commit.committer.date;
+async function getMergedPRsForBranch(branch) {
+  if (!branch) {
+    throw new Error("getMergedPRsForBranch requires a branch name");
   }
 
   const { data: prs } = await octokit.pulls.list({
     owner,
     repo,
     state: "closed",
-    base: "main",
+    base: branch,
     sort: "updated",
     direction: "desc",
     per_page: 50,
@@ -33,7 +33,6 @@ async function getMergedPRsSinceLastTag() {
 
   return prs
     .filter((pr) => pr.merged_at)
-    .filter((pr) => !sinceDate || new Date(pr.merged_at) > new Date(sinceDate))
     .map((pr) => ({
       number: pr.number,
       title: pr.title,
@@ -43,9 +42,19 @@ async function getMergedPRsSinceLastTag() {
     }));
 }
 
-async function getLatestTag() {
-  const { data: tags } = await octokit.repos.listTags({ owner, repo, per_page: 1 });
-  return tags.length > 0 ? tags[0].name : null;
+/**
+ * Confirms a branch actually exists in the repo before we try to use it.
+ * Useful for catching typos in /release cut <branch> early, with a clear
+ * error, rather than silently returning an empty changelog.
+ */
+async function branchExists(branch) {
+  try {
+    await octokit.repos.getBranch({ owner, repo, branch });
+    return true;
+  } catch (err) {
+    if (err.status === 404) return false;
+    throw err;
+  }
 }
 
-module.exports = { getMergedPRsSinceLastTag, getLatestTag };
+module.exports = { getMergedPRsForBranch, branchExists };
