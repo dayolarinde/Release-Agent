@@ -11,7 +11,7 @@ const pool = new Pool({
 });
 
 // Statuses that mean "this release is finished, no longer active."
-const TERMINAL_STATUSES = ["deployed", "rolled_back"];
+const TERMINAL_STATUSES = ["deployed", "rolled back"];
 
 async function initSchema() {
   await pool.query(`
@@ -41,6 +41,15 @@ async function initSchema() {
 
     ALTER TABLE releases ALTER COLUMN branch SET NOT NULL;
 
+    -- Convert any pre-existing rows from the old snake_case status values
+    -- to natural English, so old test data stays consistent with the new
+    -- terminal-status checks below (otherwise an old row like
+    -- 'rolled_back' wouldn't match 'rolled back' and would incorrectly
+    -- look "active" again, blocking new releases on that branch).
+    UPDATE releases SET status = 'awaiting approval' WHERE status = 'awaiting_approval';
+    UPDATE releases SET status = 'ready to deploy' WHERE status = 'ready_to_deploy';
+    UPDATE releases SET status = 'rolled back' WHERE status = 'rolled_back';
+
     CREATE TABLE IF NOT EXISTS checklist_items (
       id SERIAL PRIMARY KEY,
       release_id INTEGER NOT NULL REFERENCES releases(id),
@@ -65,7 +74,7 @@ async function initSchema() {
     -- it just can't have more than one *active* one simultaneously.
     CREATE UNIQUE INDEX IF NOT EXISTS one_active_release_per_branch
       ON releases (branch)
-      WHERE status NOT IN ('deployed', 'rolled_back');
+      WHERE status NOT IN ('deployed', 'rolled back');
   `);
 }
 
@@ -86,7 +95,7 @@ async function createRelease({ branch, tag, checklistType = "default", slackChan
   try {
     const { rows } = await pool.query(
       `INSERT INTO releases (branch, tag, checklist_type, slack_channel, slack_thread_ts, changelog, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'awaiting_approval')
+       VALUES ($1, $2, $3, $4, $5, $6, 'awaiting approval')
        RETURNING id`,
       [branch, tag, checklistType, slackChannel, slackThreadTs, changelog]
     );
@@ -135,7 +144,7 @@ async function getRelease(releaseId) {
  */
 async function getActiveReleaseByBranch(branch) {
   const { rows } = await pool.query(
-    `SELECT * FROM releases WHERE branch = $1 AND status NOT IN ('deployed', 'rolled_back')
+    `SELECT * FROM releases WHERE branch = $1 AND status NOT IN ('deployed', 'rolled back')
      ORDER BY created_at DESC LIMIT 1`,
     [branch]
   );
@@ -148,7 +157,7 @@ async function getActiveReleaseByBranch(branch) {
  */
 async function getAllActiveReleases() {
   const { rows } = await pool.query(
-    `SELECT * FROM releases WHERE status NOT IN ('deployed', 'rolled_back')
+    `SELECT * FROM releases WHERE status NOT IN ('deployed', 'rolled back')
      ORDER BY created_at DESC`
   );
   return Promise.all(rows.map((r) => getRelease(r.id)));
