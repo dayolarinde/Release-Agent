@@ -79,8 +79,6 @@ function registerCommands(app) {
             changelog,
           });
         } catch (err) {
-          // Thrown by db.createRelease when this branch already has an
-          // active release (see the partial unique index in db.js).
           await respond(`:warning: ${err.message}`);
           return;
         }
@@ -98,7 +96,6 @@ function registerCommands(app) {
 
       if (sub === "status") {
         if (!branch) {
-          // No branch given -- show every release currently in flight.
           const releases = await db.getAllActiveReleases();
           if (releases.length === 0) {
             await respond("No releases currently in progress.");
