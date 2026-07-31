@@ -33,7 +33,11 @@ async function initSchema() {
 
     -- Backfill any pre-existing rows (from before this change) with a
     -- placeholder so the NOT NULL constraint below can be applied safely.
-    UPDATE releases SET branch = 'unspecified-legacy' WHERE branch IS NULL;
+    -- Each pre-existing row gets its own unique placeholder (using its id)
+    -- rather than one shared string -- a shared placeholder would collide
+    -- with the partial unique index below if more than one old release
+    -- was still in a non-terminal status when this migration ran.
+    UPDATE releases SET branch = 'unspecified-legacy-' || id WHERE branch IS NULL;
 
     ALTER TABLE releases ALTER COLUMN branch SET NOT NULL;
 
