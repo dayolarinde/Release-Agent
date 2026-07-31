@@ -49,7 +49,18 @@ receiver.app.use("/webhooks", createWebhookRouter(app.client));
 receiver.app.get("/healthz", (req, res) => res.json({ ok: true }));
 
 (async () => {
-  await initSchema();
+  try {
+    await initSchema();
+  } catch (err) {
+    // A schema migration hiccup should never silently prevent the server
+    // from starting -- that's exactly what happened before this fix: the
+    // process stayed alive (thanks to the unhandledRejection handler
+    // above) but execution never reached app.start() below, so Render
+    // kept routing traffic to the last successful deploy instead, making
+    // it look like new code wasn't taking effect at all.
+    console.error("initSchema failed -- starting anyway, but the database may be in an inconsistent state:", err);
+  }
+
   const port = process.env.PORT || 3000;
   await app.start(port);
   console.log(`⚡️ release-agent running on port ${port}`);
