@@ -56,14 +56,14 @@ function createWebhookRouter(slackClient) {
         await slackClient.chat.postMessage({
           channel: release.slack_channel,
           thread_ts: release.slack_thread_ts,
-          text: `:hourglass_flowing_sand: Deploy started for release #${release.id} (\`${branch}\`).`,
+          text: `:hourglass_flowing_sand: Deploy started for release \`${branch}\`.`,
         });
       } else if (event_type === "deploy_succeeded") {
         await db.setReleaseStatus(release.id, "deployed");
         await slackClient.chat.postMessage({
           channel: release.slack_channel,
           thread_ts: release.slack_thread_ts,
-          text: `:white_check_mark: Release #${release.id} (\`${branch}\`) deployed successfully.`,
+          text: `:white_check_mark: Release \`${branch}\` deployed successfully.`,
         });
       } else if (event_type === "deploy_failed" || event_type === "health_check_failed") {
         await db.setReleaseStatus(release.id, "failed");
@@ -90,7 +90,7 @@ function createWebhookRouter(slackClient) {
               type: "section",
               text: {
                 type: "mrkdwn",
-                text: `:rotating_light: *Deploy issue detected for release #${release.id} (\`${branch}\`)*\n${summary}`,
+                text: `:rotating_light: *Deploy issue detected for release \`${branch}\`*\n${summary}`,
               },
             },
             {
