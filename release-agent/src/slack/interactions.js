@@ -19,11 +19,11 @@ function registerInteractions(app) {
     });
 
     if (await db.isChecklistComplete(releaseId)) {
-      await db.setReleaseStatus(releaseId, "ready_to_deploy");
+      await db.setReleaseStatus(releaseId, "ready to deploy");
       await client.chat.postMessage({
         channel: release.slack_channel,
         thread_ts: release.slack_thread_ts,
-        text: `:white_check_mark: All checklist items complete for release #${releaseId}. Ready to deploy.`,
+        text: `:white_check_mark: All checklist items complete for \`${release.branch}\`. Ready to deploy.`,
       });
     }
   });
@@ -31,13 +31,13 @@ function registerInteractions(app) {
   app.action("confirm_rollback", async ({ ack, body, action, client }) => {
     await ack();
     const releaseId = Number(action.value);
-    await db.setReleaseStatus(releaseId, "rolled_back");
-    await db.logDeployEvent(releaseId, "rolled_back", `Confirmed by ${body.user.id}`);
+    const release = await db.setReleaseStatus(releaseId, "rolled back");
+    await db.logDeployEvent(releaseId, "rolled back", `Confirmed by ${body.user.id}`);
 
     await client.chat.update({
       channel: body.channel.id,
       ts: body.message.ts,
-      text: `Rollback confirmed for release #${releaseId} by <@${body.user.id}>. Trigger your rollback pipeline now.`,
+      text: `Rollback confirmed for \`${release.branch}\` by <@${body.user.id}>. Trigger your rollback pipeline now.`,
       blocks: [],
     });
   });
