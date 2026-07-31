@@ -34,7 +34,7 @@ function buildChecklistBlocks(release) {
 
 function formatReleaseSummary(release) {
   const done = release.checklist.filter((i) => i.done).length;
-  return `*Release #${release.id}* (branch \`${release.branch}\`) — status: *${release.status}*\nChecklist: ${done}/${release.checklist.length} complete`;
+  return `*Release for \`${release.branch}\`* — status: *${release.status}*\nChecklist: ${done}/${release.checklist.length} complete`;
 }
 
 function registerCommands(app) {
@@ -79,6 +79,8 @@ function registerCommands(app) {
             changelog,
           });
         } catch (err) {
+          // Thrown by db.createRelease when this branch already has an
+          // active release (see the partial unique index in db.js).
           await respond(`:warning: ${err.message}`);
           return;
         }
@@ -90,12 +92,13 @@ function registerCommands(app) {
           blocks: buildChecklistBlocks(release),
         });
 
-        await respond(`Release #${release.id} drafted for \`${branch}\`. Changelog and checklist posted to <#${process.env.SLACK_RELEASE_CHANNEL}>.`);
+        await respond(`Release drafted for \`${branch}\`. Changelog and checklist posted to <#${process.env.SLACK_RELEASE_CHANNEL}>.`);
         return;
       }
 
       if (sub === "status") {
         if (!branch) {
+          // No branch given -- show every release currently in flight.
           const releases = await db.getAllActiveReleases();
           if (releases.length === 0) {
             await respond("No releases currently in progress.");
@@ -133,7 +136,7 @@ function registerCommands(app) {
           blocks: [
             {
               type: "section",
-              text: { type: "mrkdwn", text: `:warning: Rollback requested for release #${release.id} (\`${release.branch}\`) by <@${command.user_id}>.` },
+              text: { type: "mrkdwn", text: `:warning: Rollback requested for release \`${release.branch}\` by <@${command.user_id}>.` },
             },
             {
               type: "actions",
