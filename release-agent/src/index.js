@@ -61,7 +61,12 @@ receiver.app.get("/healthz", (req, res) => res.json({ ok: true }));
     console.error("initSchema failed -- starting anyway, but the database may be in an inconsistent state:", err);
   }
 
-  const port = process.env.PORT || 3000;
-  await app.start(port);
+  const port = Number(process.env.PORT) || 3000;
+  // Bind explicitly to 0.0.0.0 rather than leaving the host unset. Node's
+  // default (binding to all interfaces via ::) doesn't always get picked
+  // up correctly by Render's port scanner in containerized environments --
+  // this is what "running on port X" in the logs but "no open ports
+  // detected" from Render at the same time usually means.
+  await app.start({ port, host: "0.0.0.0" });
   console.log(`⚡️ release-agent running on port ${port}`);
 })();
