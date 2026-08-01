@@ -1,0 +1,10 @@
+# Ordered list of environment stages every release moves through.
+# Add/remove/reorder stages here -- no code changes needed.
+# Names are case-sensitive and must match exactly what's passed in the
+# "environment" field of deploy-event webhooks and the Deploy workflow's
+# environment input.
+
+stages:
+  - SIT
+  - UAT
+  - PROD

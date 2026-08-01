@@ -1,0 +1,16 @@
+# Slack member IDs to @-mention when a release reaches each environment
+# stage (i.e. when a deploy to that stage starts). Edit freely -- no code
+# changes needed.
+#
+# Find a member ID: click someone's profile in Slack -> "..." more actions
+# menu -> "Copy member ID". It looks like U0123456789, not their @handle.
+#
+# Leave a stage's list empty if no one needs to be pinged for it.
+
+SIT: []
+
+UAT:
+  - U0123456789
+
+PROD:
+  - U0987654321

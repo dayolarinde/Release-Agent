@@ -34,7 +34,12 @@ function buildChecklistBlocks(release) {
 
 function formatReleaseSummary(release) {
   const done = release.checklist.filter((i) => i.done).length;
-  return `*Release for \`${release.branch}\`* — status: *${release.status}*\nChecklist: ${done}/${release.checklist.length} complete`;
+  const stageIcons = { pending: "⬜", deploying: "⏳", deployed: "✅", failed: "🔴" };
+  const stageLine = release.stages
+    .map((s) => `${stageIcons[s.status] || "⬜"} ${s.environment}`)
+    .join("  →  ");
+
+  return `*Release for \`${release.branch}\`* — status: *${release.status}*\nChecklist: ${done}/${release.checklist.length} complete\nStages: ${stageLine}`;
 }
 
 function registerCommands(app) {

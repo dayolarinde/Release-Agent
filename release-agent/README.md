@@ -47,8 +47,10 @@ where the local filesystem is usually wiped on each deploy.
 4. `npm start` — this also creates the required tables on first run via `initSchema()`.
 4. In Slack, install the app with slash command `/release` and enable Interactivity pointing at
    `https://<your-host>/slack/events`.
-5. In your repo, add the secrets `RELEASE_AGENT_URL` and `RELEASE_AGENT_WEBHOOK_SECRET`, then
-   copy `.github/workflows/release-events.yml` into your target repo's `.github/workflows/`.
+5. In your target repo, add the secrets `RELEASE_AGENT_URL` and `RELEASE_AGENT_WEBHOOK_SECRET`, then
+   copy `.github/workflows/deploy.yml` into that repo's `.github/workflows/`. This workflow triggers
+   automatically when a pull request merges into a branch named `SIT`, `UAT`, or `PROD` (those branches
+   must exist in the repo), and reports deploy status directly to the backend as part of its own run.
 
 ## Slack commands
 
@@ -68,6 +70,21 @@ argument, except `/release status` with no argument, which lists everything curr
 
 Edit `config/checklist.yaml`. Each release type maps to a list of required checklist items.
 No code changes needed to add/remove items.
+
+## Customizing environment stages
+
+Edit `config/environments.yaml` -- an ordered list of stage names (e.g. `SIT`, `UAT`, `PROD`). Every
+release cut after a config change gets that stage list; releases already in flight keep whatever
+stages were configured when they were created. Stages must complete in order -- deploying to a later
+stage is refused with a clear message if an earlier one hasn't succeeded yet.
+
+## Auto-mentioning approvers per stage
+
+Edit `config/approvers.yaml` -- maps each environment to a list of Slack member IDs to `@`-mention the
+moment a deploy to that stage starts. Get a member ID from someone's Slack profile (`...` menu ->
+"Copy member ID") -- it's not their `@handle`. Leave a stage's list empty (`[]`) if no one needs to be
+pinged for it. This file is entirely optional -- if it doesn't exist, no mentions happen and nothing
+breaks.
 
 ## Design choices worth knowing
 
@@ -92,6 +109,27 @@ No code changes needed to add/remove items.
   the Copilot CLI as a subprocess and talks to it over JSON-RPC — heavier per-call than a plain HTTP
   request, but avoids needing separate API approval if your org has already approved Copilot. It's in
   public preview as of mid-2026, so treat this integration as POC-grade rather than production-hardened.
+- **Environment stages deploy in order, tracked independently.** Each release gets its own SIT/UAT/PROD
+  (or whatever `config/environments.yaml` defines) progress, enforced server-side -- attempting to
+  deploy to a later stage before an earlier one has succeeded is refused rather than silently allowed.
+  Deploy status is reported directly by whatever runs the deploy (see `.github/workflows/deploy.yml`),
+  not inferred from a separate observer workflow.
+- **Release identity and environment come from the merge itself, never inferred from a running branch's
+  own git context.** `deploy.yml` triggers automatically when a pull request merges into `SIT`, `UAT`,
+  or `PROD` -- the environment is that PR's base branch, and the release identity is the PR's *head*
+  branch (whatever was merged in, e.g. `Release-Aug-2026`). This matters because once code lives on
+  `SIT` itself, that branch's own name is just `"SIT"` -- useless for knowing which release a deploy
+  belongs to. Reading both values off the PR's metadata, rather than off `github.ref_name`, keeps
+  release identity and environment correctly separated no matter how many environments code passes
+  through. This assumes promotions happen via merged pull requests, not direct pushes -- see the note
+  at the top of `deploy.yml` if that assumption doesn't hold for your real pipeline.
+- **Deploy success/failure is controlled by a PR label in this POC**, since nothing is manually
+  triggering a run anymore to provide that input directly. Add a `simulate-failure` label to a PR
+  before merging it to test the failure path; leave it off for a simulated success.
+- **The PR count shown in deploy-started messages is a live GitHub API call**, not something cached
+  from when the release was cut -- it reflects whatever's merged into the release branch at the moment
+  each stage's deploy starts. If that call fails, the message still posts, just without the count,
+  rather than blocking the notification entirely.
 
 ## Next steps beyond this starter
 

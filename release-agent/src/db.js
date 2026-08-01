@@ -10,8 +10,34 @@ const pool = new Pool({
   ssl: process.env.PGSSL === "false" ? false : { rejectUnauthorized: false },
 });
 
-// Statuses that mean "this release is finished, no longer active."
+// Statuses that mean "this release is finished, no longer active." Note:
+// this is the *overall release* status, only ever exactly "deployed" once
+// the final environment stage (e.g. PROD) succeeds -- an intermediate
+// stage succeeding produces a different string (see setStageStatus below),
+// so it doesn't get mistaken for the whole release being done.
 const TERMINAL_STATUSES = ["deployed", "rolled back"];
+
+function loadEnvironmentConfig() {
+  const raw = fs.readFileSync(
+    path.join(__dirname, "..", "config", "environments.yaml"),
+    "utf8"
+  );
+  return yaml.load(raw).stages;
+}
+
+/**
+ * Slack member IDs to mention per environment stage. Optional -- returns
+ * an empty object (no mentions for any stage) if the config file doesn't
+ * exist yet, so this feature doesn't break setups that predate it.
+ */
+function loadApproversConfig() {
+  const configPath = path.join(__dirname, "..", "config", "approvers.yaml");
+  if (!fs.existsSync(configPath)) {
+    return {};
+  }
+  const raw = fs.readFileSync(configPath, "utf8");
+  return yaml.load(raw) || {};
+}
 
 async function initSchema() {
   await pool.query(`
@@ -68,6 +94,21 @@ async function initSchema() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    -- One row per release per environment stage (SIT, UAT, PROD, ...),
+    -- tracked independently. stage_order comes from config/environments.yaml
+    -- at the time the release was cut, so reordering the config later
+    -- doesn't retroactively change releases already in flight.
+    CREATE TABLE IF NOT EXISTS deploy_stages (
+      id SERIAL PRIMARY KEY,
+      release_id INTEGER NOT NULL REFERENCES releases(id),
+      environment TEXT NOT NULL,
+      stage_order INTEGER NOT NULL,
+      status TEXT DEFAULT 'pending',
+      started_at TIMESTAMPTZ,
+      completed_at TIMESTAMPTZ,
+      UNIQUE (release_id, environment)
+    );
+
     -- Only one active (non-terminal) release per branch at a time. This is
     -- a partial unique index rather than a plain UNIQUE constraint, since
     -- the same branch name can have many *finished* releases over time --
@@ -121,6 +162,14 @@ async function createRelease({ branch, tag, checklistType = "default", slackChan
     );
   }
 
+  const stages = loadEnvironmentConfig();
+  for (let i = 0; i < stages.length; i++) {
+    await pool.query(
+      `INSERT INTO deploy_stages (release_id, environment, stage_order) VALUES ($1, $2, $3)`,
+      [releaseId, stages[i], i]
+    );
+  }
+
   return getRelease(releaseId);
 }
 
@@ -134,6 +183,13 @@ async function getRelease(releaseId) {
     [releaseId]
   );
   release.checklist = checklist;
+
+  const { rows: stages } = await pool.query(
+    `SELECT * FROM deploy_stages WHERE release_id = $1 ORDER BY stage_order`,
+    [releaseId]
+  );
+  release.stages = stages;
+
   return release;
 }
 
@@ -192,6 +248,85 @@ async function logDeployEvent(releaseId, eventType, detail) {
   );
 }
 
+/**
+ * Fetches a single environment stage row for a release, or null if that
+ * environment isn't a configured stage for this release.
+ */
+async function getStage(releaseId, environment) {
+  const { rows } = await pool.query(
+    `SELECT * FROM deploy_stages WHERE release_id = $1 AND environment = $2`,
+    [releaseId, environment]
+  );
+  return rows.length > 0 ? rows[0] : null;
+}
+
+/**
+ * Enforces that stages complete in order: a stage can only start if every
+ * earlier stage (by stage_order) has already succeeded. Returns null if
+ * starting is fine, or a string explaining why it's blocked.
+ */
+async function checkStageOrder(releaseId, environment) {
+  const stage = await getStage(releaseId, environment);
+  if (!stage) {
+    return `"${environment}" isn't a configured environment for this release. Check config/environments.yaml.`;
+  }
+
+  const { rows: earlierStages } = await pool.query(
+    `SELECT * FROM deploy_stages WHERE release_id = $1 AND stage_order < $2 ORDER BY stage_order`,
+    [releaseId, stage.stage_order]
+  );
+
+  const incomplete = earlierStages.find((s) => s.status !== "deployed");
+  if (incomplete) {
+    return `Can't deploy to ${environment} yet -- ${incomplete.environment} hasn't succeeded (currently: ${incomplete.status}).`;
+  }
+
+  return null;
+}
+
+async function setStageStatus(releaseId, environment, status) {
+  const timestampColumn =
+    status === "deploying" ? "started_at" : status === "deployed" || status === "failed" ? "completed_at" : null;
+
+  const setClause = timestampColumn
+    ? `status = $1, ${timestampColumn} = NOW()`
+    : `status = $1`;
+
+  await pool.query(
+    `UPDATE deploy_stages SET ${setClause} WHERE release_id = $2 AND environment = $3`,
+    [status, releaseId, environment]
+  );
+
+  return getStage(releaseId, environment);
+}
+
+/**
+ * Builds the overall release.status string from a single stage event,
+ * e.g. "deploying (UAT)", "deployed to UAT", "failed (SIT)", or the
+ * terminal "deployed" once the last configured stage succeeds.
+ */
+async function updateReleaseStatusFromStage(releaseId, environment, stageStatus) {
+  if (stageStatus === "deploying") {
+    return setReleaseStatus(releaseId, `deploying (${environment})`);
+  }
+
+  if (stageStatus === "failed") {
+    return setReleaseStatus(releaseId, `failed (${environment})`);
+  }
+
+  if (stageStatus === "deployed") {
+    const stage = await getStage(releaseId, environment);
+    const { rows: laterStages } = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM deploy_stages WHERE release_id = $1 AND stage_order > $2`,
+      [releaseId, stage.stage_order]
+    );
+    const isLastStage = laterStages[0].c === 0;
+    return setReleaseStatus(releaseId, isLastStage ? "deployed" : `deployed to ${environment}`);
+  }
+
+  return getRelease(releaseId);
+}
+
 module.exports = {
   pool,
   initSchema,
@@ -204,5 +339,11 @@ module.exports = {
   setReleaseStatus,
   logDeployEvent,
   loadChecklistConfig,
+  loadEnvironmentConfig,
+  loadApproversConfig,
+  getStage,
+  checkStageOrder,
+  setStageStatus,
+  updateReleaseStatusFromStage,
   TERMINAL_STATUSES,
 };
