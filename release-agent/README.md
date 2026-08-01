@@ -58,12 +58,21 @@ Releases are scoped to a **branch name** (e.g. a release branch cut from `main`)
 can be in flight at once without crossing wires. Every command below takes the branch name as an
 argument, except `/release status` with no argument, which lists everything currently active.
 
+Every command that targets a specific branch (`cut`, `status <branch>`, `rollback <branch>`) reposts
+the live, clickable checklist into that release's thread -- not just a text summary. This is
+deliberate repetition: it means the checklist (with working buttons) is always one command away,
+without having to scroll back to find the original message. Running `/release status <branch>`
+repeatedly will post a fresh checklist each time, so expect the thread to accumulate one per check --
+that's the tradeoff for always having a current, clickable copy on hand.
+
 - `/release cut <branch>` — cut a new release for that branch: fetches PRs merged into it, drafts a
   changelog, posts it to the release channel as a thread, and opens the approval checklist. Fails
   clearly if that branch doesn't exist, or if it already has an active release in progress.
-- `/release status [branch]` — with a branch name, shows that release's checklist progress and
-  deploy status. Without one, lists every release currently active across all branches.
-- `/release rollback <branch>` — manually propose a rollback for that branch's active release (posts a
+- `/release status [branch]` — with a branch name, reposts that release's live checklist and shows a
+  status/stage summary. Without one, lists every release currently active across all branches (no
+  checklists reposted here, to avoid flooding the channel if several releases are in flight).
+- `/release rollback <branch>` — reposts the checklist, then manually proposes a rollback for that
+  branch's active release (posts a
   confirm button; nothing executes without a click).
 
 ## Customizing the checklist

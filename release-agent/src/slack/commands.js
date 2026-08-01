@@ -42,6 +42,24 @@ function formatReleaseSummary(release) {
   return `*Release for \`${release.branch}\`* — status: *${release.status}*\nChecklist: ${done}/${release.checklist.length} complete\nStages: ${stageLine}`;
 }
 
+/**
+ * Posts the live, clickable checklist into a release's thread. Used by
+ * /release cut, status, and rollback so the checklist (with working
+ * buttons) is always visible, not just a text summary. This has to be a
+ * real posted message rather than an ephemeral slash-command reply --
+ * Slack ephemeral messages can't be updated via chat.update the way the
+ * checklist button handler in interactions.js expects, only regular
+ * channel/thread messages can.
+ */
+async function postChecklistToThread(client, release) {
+  await client.chat.postMessage({
+    channel: release.slack_channel,
+    thread_ts: release.slack_thread_ts,
+    text: "Approval checklist",
+    blocks: buildChecklistBlocks(release),
+  });
+}
+
 function registerCommands(app) {
   app.command("/release", async ({ command, ack, respond, client }) => {
     await ack();
@@ -90,12 +108,7 @@ function registerCommands(app) {
           return;
         }
 
-        await client.chat.postMessage({
-          channel: posted.channel,
-          thread_ts: posted.ts,
-          text: "Approval checklist",
-          blocks: buildChecklistBlocks(release),
-        });
+        await postChecklistToThread(client, release);
 
         await respond(`Release drafted for \`${branch}\`. Changelog and checklist posted to <#${process.env.SLACK_RELEASE_CHANNEL}>.`);
         return;
@@ -104,6 +117,8 @@ function registerCommands(app) {
       if (sub === "status") {
         if (!branch) {
           // No branch given -- show every release currently in flight.
+          // Skips posting individual checklists here since there could be
+          // several releases active at once; that would get noisy fast.
           const releases = await db.getAllActiveReleases();
           if (releases.length === 0) {
             await respond("No releases currently in progress.");
@@ -119,6 +134,7 @@ function registerCommands(app) {
           await respond(`No active release in progress for \`${branch}\`.`);
           return;
         }
+        await postChecklistToThread(client, release);
         await respond(formatReleaseSummary(release));
         return;
       }
@@ -134,6 +150,7 @@ function registerCommands(app) {
           await respond(`No active release for \`${branch}\` to roll back.`);
           return;
         }
+        await postChecklistToThread(client, release);
         await client.chat.postMessage({
           channel: release.slack_channel,
           thread_ts: release.slack_thread_ts,
