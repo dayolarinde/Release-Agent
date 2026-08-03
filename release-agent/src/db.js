@@ -39,6 +39,28 @@ function loadApproversConfig() {
   return yaml.load(raw) || {};
 }
 
+/**
+ * The release notes template -- section names/order and a footer line.
+ * Falls back to a sensible default if the file doesn't exist, so this
+ * feature is optional the same way approvers.yaml is.
+ */
+function loadReleaseNotesTemplate() {
+  const configPath = path.join(__dirname, "..", "config", "release-notes-template.yaml");
+  if (!fs.existsSync(configPath)) {
+    return {
+      title: "Release Notes",
+      sections: [
+        { name: "Features", description: "New user-facing functionality" },
+        { name: "Fixes", description: "Issues resolved in this release" },
+        { name: "Chores/Other", description: "Everything else" },
+      ],
+      footer: "",
+    };
+  }
+  const raw = fs.readFileSync(configPath, "utf8");
+  return yaml.load(raw);
+}
+
 async function initSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS releases (
@@ -351,6 +373,7 @@ module.exports = {
   loadChecklistConfig,
   loadEnvironmentConfig,
   loadApproversConfig,
+  loadReleaseNotesTemplate,
   getStage,
   checkStageOrder,
   setStageStatus,

@@ -1,4 +1,5 @@
 const { Document, Packer, Paragraph, TextRun, HeadingLevel } = require("docx");
+const { loadReleaseNotesTemplate } = require("./db");
 
 /**
  * Very lightweight markdown-to-docx conversion, just enough for the
@@ -37,20 +38,28 @@ function parseMarkdownToParagraphs(markdown) {
  */
 async function buildReleaseNotesDocx(branch, changelogMarkdown) {
   const generatedDate = new Date().toISOString().slice(0, 10);
+  const template = loadReleaseNotesTemplate();
+
+  const children = [
+    new Paragraph({ text: `${template.title} — ${branch}`, heading: HeadingLevel.TITLE, spacing: { after: 80 } }),
+    new Paragraph({
+      children: [new TextRun({ text: `Generated ${generatedDate}`, italics: true, color: "555555" })],
+      spacing: { after: 300 },
+    }),
+    ...parseMarkdownToParagraphs(changelogMarkdown),
+  ];
+
+  if (template.footer) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: template.footer, italics: true, color: "888888", size: 18 })],
+        spacing: { before: 400 },
+      })
+    );
+  }
 
   const doc = new Document({
-    sections: [
-      {
-        children: [
-          new Paragraph({ text: `Release Notes — ${branch}`, heading: HeadingLevel.TITLE, spacing: { after: 80 } }),
-          new Paragraph({
-            children: [new TextRun({ text: `Generated ${generatedDate}`, italics: true, color: "555555" })],
-            spacing: { after: 300 },
-          }),
-          ...parseMarkdownToParagraphs(changelogMarkdown),
-        ],
-      },
-    ],
+    sections: [{ children }],
   });
 
   return Packer.toBuffer(doc);

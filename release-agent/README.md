@@ -59,11 +59,12 @@ can be in flight at once without crossing wires. Every command below takes the b
 argument, except `/release status` with no argument, which lists everything currently active.
 
 Every command that targets a specific branch (`cut`, `status <branch>`, `rollback <branch>`) reposts
-the live, clickable checklist into that release's thread -- not just a text summary. This is
-deliberate repetition: it means the checklist (with working buttons) is always one command away,
-without having to scroll back to find the original message. Running `/release status <branch>`
-repeatedly will post a fresh checklist each time, so expect the thread to accumulate one per check --
-that's the tradeoff for always having a current, clickable copy on hand.
+the live, clickable checklist as a **top-level message in the channel** -- not just a text summary,
+and deliberately not threaded under the original changelog message. A threaded reply collapses in the
+channel view and needs a click to expand; posting it top-level keeps it immediately visible. Running
+`/release status <branch>` repeatedly will post a fresh checklist each time, so expect the channel to
+accumulate one per check -- that's the tradeoff for always having a current, clickable, fully-visible
+copy on hand rather than one buried in a thread.
 
 - `/release cut <branch>` — cut a new release for that branch: fetches PRs merged into it, drafts a
   changelog, posts it to the release channel as a thread, and opens the approval checklist. Fails
@@ -98,6 +99,14 @@ moment a deploy to that stage starts. Get a member ID from someone's Slack profi
 "Copy member ID") -- it's not their `@handle`. Leave a stage's list empty (`[]`) if no one needs to be
 pinged for it. This file is entirely optional -- if it doesn't exist, no mentions happen and nothing
 breaks.
+
+## Customizing the release notes template
+
+Edit `config/release-notes-template.yaml` -- controls the document title, the section names/order/
+descriptions Copilot sorts merged PRs into (used for both the Slack message and the Word doc), and a
+footer line. Sections are used in the exact order listed; a section is skipped entirely if no PRs fit
+it, rather than showing an empty header. This file is optional -- a sensible default (Features/Fixes/
+Chores) is used if it doesn't exist.
 
 ## Design choices worth knowing
 

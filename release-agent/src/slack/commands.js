@@ -52,18 +52,23 @@ function formatReleaseSummary(release) {
 }
 
 /**
- * Posts the live, clickable checklist into a release's thread. Used by
- * /release cut, status, and rollback so the checklist (with working
- * buttons) is always visible, not just a text summary. This has to be a
- * real posted message rather than an ephemeral slash-command reply --
- * Slack ephemeral messages can't be updated via chat.update the way the
- * checklist button handler in interactions.js expects, only regular
- * channel/thread messages can.
+ * Posts the live, clickable checklist as a top-level message in the
+ * release channel -- deliberately NOT threaded under the original
+ * changelog message. A threaded reply gets collapsed in the channel view
+ * (shows as "N replies", requiring a click to expand), which defeats the
+ * point of wanting the checklist immediately visible. This does mean
+ * checklists for different releases will appear as separate messages
+ * interleaved in the channel rather than nested under their own thread --
+ * each one's header still names its branch, so they stay identifiable.
+ *
+ * Still has to be a real posted message rather than an ephemeral
+ * slash-command reply -- Slack ephemeral messages can't be updated via
+ * chat.update the way the checklist button handler in interactions.js
+ * expects, only regular channel messages can.
  */
 async function postChecklistToThread(client, release) {
   await client.chat.postMessage({
     channel: release.slack_channel,
-    thread_ts: release.slack_thread_ts,
     text: "Approval checklist",
     blocks: buildChecklistBlocks(release),
   });
@@ -168,12 +173,6 @@ function registerCommands(app) {
             text: ":warning: Release notes updated above, but the Word doc attachment failed to generate. Check Render logs for details.",
           });
         }
-
-        await client.chat.postMessage({
-          channel: release.slack_channel,
-          thread_ts: release.slack_thread_ts,
-          text: `:arrows_counterclockwise: Release notes refreshed for \`${branch}\` — now reflects ${prs.length} merged PR${prs.length === 1 ? "" : "s"}.`,
-        });
 
         await respond(`Release notes refreshed for \`${branch}\`.`);
         return;

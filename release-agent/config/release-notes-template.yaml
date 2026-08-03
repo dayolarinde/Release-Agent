@@ -1,0 +1,18 @@
+# Template controlling the structure of every generated release note.
+# Edit freely -- no code changes needed. Sections are used in this exact
+# order; a section is skipped entirely if no merged PRs fit it, rather
+# than showing an empty header.
+
+title: "Release Notes"
+
+sections:
+  - name: "New Features"
+    description: "User-facing new functionality"
+  - name: "Improvements"
+    description: "Enhancements to existing functionality, performance, or usability"
+  - name: "Bug Fixes"
+    description: "Issues resolved in this release"
+  - name: "Other Changes"
+    description: "Chores, refactors, dependency updates, internal tooling -- anything not user-facing"
+
+footer: "Generated automatically from merged pull requests."

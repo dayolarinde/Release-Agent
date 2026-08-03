@@ -1,4 +1,5 @@
 const { CopilotClient, approveAll } = require("@github/copilot-sdk");
+const { loadReleaseNotesTemplate } = require("./db");
 
 // Model can be overridden via env; "gpt-5" is a safe default available to
 // standard Copilot subscriptions. See the SDK's listModels() if you want to
@@ -77,7 +78,18 @@ async function draftChangelog(prs) {
     .map((pr) => `- #${pr.number} ${pr.title} (${pr.author}) [labels: ${pr.labels.join(", ") || "none"}]`)
     .join("\n");
 
-  const prompt = `You are drafting release notes for a software release. Given this list of merged pull requests, group them into "Features", "Fixes", and "Chores/Other" sections based on their titles and labels. Write clear, user-facing one-line summaries for each, not raw PR titles. Use markdown with headers. Be concise.
+  const template = loadReleaseNotesTemplate();
+  const sectionList = template.sections
+    .map((s) => `- "${s.name}": ${s.description}`)
+    .join("\n");
+
+  const prompt = `You are drafting release notes for a software release. Given this list of merged pull requests, sort each one into exactly one of the following sections, based on its title and labels:
+
+${sectionList}
+
+Use these exact section names as markdown headers, in this exact order. Skip a section entirely (no header at all) if no PRs fit it -- don't show an empty section.
+
+Write like a person summarizing what changed to a colleague, not like a bulleted changelog generator -- natural, plain sentences, the way you'd actually describe an update to someone. Avoid stiff, clinical phrasing (e.g. don't just restate the PR title with different words). Still keep it concise -- one clear sentence per item is usually enough.
 
 Output ONLY the release notes content itself -- no preamble, no meta-commentary about the PRs' quality or naming, no suggestions for how to improve future PRs, and no questions back to the reader. This text gets posted directly to Slack and saved into a Word document as the final release notes, not read by someone who can reply to it.
 
