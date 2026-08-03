@@ -76,6 +76,10 @@ async function initSchema() {
     UPDATE releases SET status = 'ready to deploy' WHERE status = 'ready_to_deploy';
     UPDATE releases SET status = 'rolled back' WHERE status = 'rolled_back';
 
+    -- Rename 'awaiting approval' to 'pending approvals' for any releases
+    -- created before this wording change.
+    UPDATE releases SET status = 'pending approvals' WHERE status = 'awaiting approval';
+
     CREATE TABLE IF NOT EXISTS checklist_items (
       id SERIAL PRIMARY KEY,
       release_id INTEGER NOT NULL REFERENCES releases(id),
@@ -136,7 +140,7 @@ async function createRelease({ branch, tag, checklistType = "default", slackChan
   try {
     const { rows } = await pool.query(
       `INSERT INTO releases (branch, tag, checklist_type, slack_channel, slack_thread_ts, changelog, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'awaiting approval')
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending approvals')
        RETURNING id`,
       [branch, tag, checklistType, slackChannel, slackThreadTs, changelog]
     );
