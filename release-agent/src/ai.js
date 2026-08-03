@@ -79,6 +79,8 @@ async function draftChangelog(prs) {
 
   const prompt = `You are drafting release notes for a software release. Given this list of merged pull requests, group them into "Features", "Fixes", and "Chores/Other" sections based on their titles and labels. Write clear, user-facing one-line summaries for each, not raw PR titles. Use markdown with headers. Be concise.
 
+Output ONLY the release notes content itself -- no preamble, no meta-commentary about the PRs' quality or naming, no suggestions for how to improve future PRs, and no questions back to the reader. This text gets posted directly to Slack and saved into a Word document as the final release notes, not read by someone who can reply to it.
+
 Pull requests:
 ${prList}`;
 
@@ -87,6 +89,8 @@ ${prList}`;
 
 async function summarizeFailure(logExcerpt) {
   const prompt = `Summarize this CI/deploy failure log in 2-3 plain-English sentences for a Slack message aimed at a release manager who isn't deep in the logs. Focus on what failed and the likely cause if apparent. Do not include the raw log.
+
+Output ONLY the summary itself -- no preamble, no questions back to the reader, no offers to help further. This posts directly into Slack as-is.
 
 Log:
 ${logExcerpt}`;
