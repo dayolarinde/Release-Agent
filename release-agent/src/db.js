@@ -240,6 +240,11 @@ async function isChecklistComplete(releaseId) {
   return rows[0].c === 0;
 }
 
+async function updateChangelog(releaseId, changelog) {
+  await pool.query(`UPDATE releases SET changelog = $1 WHERE id = $2`, [changelog, releaseId]);
+  return getRelease(releaseId);
+}
+
 async function setReleaseStatus(releaseId, status) {
   await pool.query(`UPDATE releases SET status = $1 WHERE id = $2`, [status, releaseId]);
   return getRelease(releaseId);
@@ -341,6 +346,7 @@ module.exports = {
   markChecklistItem,
   isChecklistComplete,
   setReleaseStatus,
+  updateChangelog,
   logDeployEvent,
   loadChecklistConfig,
   loadEnvironmentConfig,

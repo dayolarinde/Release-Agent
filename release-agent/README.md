@@ -68,6 +68,10 @@ that's the tradeoff for always having a current, clickable copy on hand.
 - `/release cut <branch>` — cut a new release for that branch: fetches PRs merged into it, drafts a
   changelog, posts it to the release channel as a thread, and opens the approval checklist. Fails
   clearly if that branch doesn't exist, or if it already has an active release in progress.
+- `/release notes <branch>` — regenerates release notes from whatever's currently merged into the
+  branch (not just what was there at cut time), updates the original changelog message in place, and
+  attaches a Word doc (`.docx`) copy in the thread. Use this if more PRs land on the release branch
+  after it was first cut, or whenever you want a downloadable copy of the current notes.
 - `/release status [branch]` — with a branch name, reposts that release's live checklist and shows a
   status/stage summary. Without one, lists every release currently active across all branches (no
   checklists reposted here, to avoid flooding the channel if several releases are in flight).
