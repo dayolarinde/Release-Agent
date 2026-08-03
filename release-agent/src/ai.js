@@ -20,15 +20,13 @@ function getClient() {
         gitHubToken: process.env.COPILOT_GITHUB_TOKEN,
       });
 
-      // IMPORTANT: Node's EventEmitter throws and crashes the process if
-      // an 'error' event fires with zero listeners attached. Without this,
-      // any hiccup in the underlying Copilot CLI subprocess (crash, broken
-      // pipe, etc.) takes down the entire backend, not just the current
-      // request. This is what was silently killing the whole service.
-      client.on("error", (err) => {
-        console.error("CopilotClient emitted an error (subprocess-level):", err);
-      });
-
+      // NOTE: CopilotClient is not an EventEmitter and has no .on() method
+      // (confirmed against the SDK's own type definitions -- an earlier
+      // version of this code assumed it did, which threw "client.on is
+      // not a function" on every single call). Errors from the underlying
+      // CLI subprocess surface as rejected promises from start(),
+      // createSession(), and session.send() instead, which is what the
+      // try/finally in runPrompt below is actually built to catch.
       await client.start();
       return client;
     })();
@@ -40,6 +38,13 @@ function getClient() {
  * Sends a single prompt to Copilot and returns the assembled text response.
  * Opens a fresh session per call and disconnects it when done, so sessions
  * don't accumulate across changelog drafts / failure summaries.
+ *
+ * Uses the SDK's own sendAndWait() rather than manually wiring up
+ * session.on("assistant.message"/"session.idle") and racing a timeout
+ * ourselves -- sendAndWait already does exactly that internally, tested
+ * by GitHub, which is one less place for us to get an event name or
+ * payload shape wrong (as happened with the error-handling code below,
+ * before this fix).
  */
 async function runPrompt(prompt, timeoutMs = 30000) {
   const client = await getClient();
@@ -49,40 +54,18 @@ async function runPrompt(prompt, timeoutMs = 30000) {
     onPermissionRequest: approveAll,
   });
 
-  let output = "";
-  let settled = false;
-
-  const done = new Promise((resolve, reject) => {
-    session.on("assistant.message", (event) => {
-      output += event.data.content;
-    });
-    session.on("session.idle", () => {
-      settled = true;
-      resolve();
-    });
-    session.on("error", (err) => {
-      settled = true;
-      reject(err);
-    });
-  });
-
-  const timeout = new Promise((_, reject) => {
-    setTimeout(() => {
-      if (!settled) reject(new Error(`Copilot session timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-  });
-
   try {
-    await session.send({ prompt });
-    await Promise.race([done, timeout]);
+    const response = await session.sendAndWait({ prompt }, timeoutMs);
+    if (!response) {
+      throw new Error("Copilot session completed with no assistant message");
+    }
+    return response.data.content.trim();
   } finally {
     // Always attempt to disconnect, even on failure/timeout, so sessions
     // don't leak. Swallow disconnect errors — we already have the real
     // error (if any) from above.
     await session.disconnect().catch(() => {});
   }
-
-  return output.trim();
 }
 
 async function draftChangelog(prs) {
