@@ -6,13 +6,13 @@
 title: "Release Notes"
 
 sections:
-  - name: "New Features"
-    description: "User-facing new functionality"
-  - name: "Improvements"
-    description: "Enhancements to existing functionality, performance, or usability"
-  - name: "Bug Fixes"
-    description: "Issues resolved in this release"
-  - name: "Other Changes"
-    description: "Chores, refactors, dependency updates, internal tooling -- anything not user-facing"
+  - name: "Feature"
+    description: "Brand new capability that didn't exist before"
+  - name: "Bug"
+    description: "A defect or incorrect behavior that's been fixed"
+  - name: "Enhancement"
+    description: "An improvement to something that already existed (not a new capability, not a bug fix)"
+  - name: "Technical Debt"
+    description: "Internal cleanup, refactors, dependency updates, or tooling changes -- not user-facing"
 
 footer: "Generated automatically from merged pull requests."

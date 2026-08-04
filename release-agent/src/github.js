@@ -6,7 +6,13 @@ const repo = process.env.GITHUB_REPO;
 
 /**
  * Returns merged PRs whose base branch is the given release branch (e.g.
- * "release/2026-08-01"), each with title, number, author, and labels.
+ * "release/2026-08-01"), each with title, number, author, labels, and
+ * headRef (the feature branch that was merged in). headRef is captured
+ * for future use extracting a Jira ticket key from the feature branch
+ * name (e.g. "feature/PROJ-123-widget") -- confirmed as where the ticket
+ * key actually lives in this team's workflow, not necessarily the PR
+ * title. It's already part of this same API response, so no extra call
+ * or permission is needed to get it.
  *
  * Note: this intentionally does not filter by "since the last tag" the way
  * an earlier main-only version of this function did -- tags are usually
@@ -39,6 +45,7 @@ async function getMergedPRsForBranch(branch) {
       author: pr.user.login,
       labels: pr.labels.map((l) => l.name),
       url: pr.html_url,
+      headRef: pr.head.ref,
     }));
 }
 
