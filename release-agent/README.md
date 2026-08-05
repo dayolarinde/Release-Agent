@@ -58,13 +58,14 @@ Releases are scoped to a **branch name** (e.g. a release branch cut from `main`)
 can be in flight at once without crossing wires. Every command below takes the branch name as an
 argument, except `/release status` with no argument, which lists everything currently active.
 
-Every command that targets a specific branch (`cut`, `status <branch>`, `rollback <branch>`) reposts
+Every command that targets a specific branch (`cut`, `status <branch>`, `rollback <branch>`) posts
 the live, clickable checklist as a **top-level message in the channel** -- not just a text summary,
 and deliberately not threaded under the original changelog message. A threaded reply collapses in the
-channel view and needs a click to expand; posting it top-level keeps it immediately visible. Running
-`/release status <branch>` repeatedly will post a fresh checklist each time, so expect the channel to
-accumulate one per check -- that's the tradeoff for always having a current, clickable, fully-visible
-copy on hand rather than one buried in a thread.
+channel view and needs a click to expand; posting it top-level keeps it immediately visible. For
+`status <branch>` specifically, the checklist is embedded directly in that same combined status
+message (see above), rather than posted separately -- running it repeatedly will post a fresh combined
+message each time, so expect the channel to accumulate one per check -- that's the tradeoff for always
+having a current, clickable, fully-visible copy on hand rather than one buried in a thread.
 
 This applies everywhere, not just the checklist: deploy status updates (started/succeeded/failed),
 the rollback request, the "ready to deploy" notice, and the release notes Word doc attachment all post
@@ -80,11 +81,12 @@ rather than several out-of-date copies scattered around.
   branch (not just what was there at cut time), updates the original changelog message in place, and
   attaches a Word doc (`.docx`) copy in the thread. Use this if more PRs land on the release branch
   after it was first cut, or whenever you want a downloadable copy of the current notes.
-- `/release status [branch]` — with a branch name, reposts that release's live checklist, shows a
-  status/stage summary (including when the release last merged into an environment, and which one),
-  and lists every merged PR currently in the branch (live-fetched from GitHub, same as the changelog).
-  Without a branch, lists every release currently active across all branches (no checklists or PR
-  lists here, to avoid flooding the channel if several releases are in flight).
+- `/release status [branch]` — with a branch name, posts one combined message: the status/stage
+  summary (including when the release last merged into an environment, and which one), the list of
+  merged PRs currently in the branch (live-fetched from GitHub), and the clickable checklist, all
+  together in a single public post. Without a branch, lists every release currently active across all
+  branches as a private text summary (no checklist or PR list here, to avoid flooding the channel if
+  several releases are in flight).
 - `/release rollback <branch>` — reposts the checklist, then manually proposes a rollback for that
   branch's active release (posts a
   confirm button; nothing executes without a click).

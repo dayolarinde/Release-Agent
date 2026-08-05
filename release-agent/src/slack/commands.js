@@ -206,7 +206,6 @@ function registerCommands(app) {
           await respond(`No active release in progress for \`${branch}\`.`);
           return;
         }
-        await postChecklistToThread(client, release);
 
         // Live PR list, best-effort: a GitHub API hiccup here shouldn't
         // block the rest of the status response from going out.
@@ -214,19 +213,35 @@ function registerCommands(app) {
         try {
           const prs = await getMergedPRsForBranch(branch);
           if (prs.length === 0) {
-            prSection = "\n\n*Merged PRs:* none yet";
+            prSection = "*Merged PRs:* none yet";
           } else {
             const prLines = prs
               .map((pr) => `• <${pr.url}|#${pr.number}> ${pr.title} (${pr.author})`)
               .join("\n");
-            prSection = `\n\n*Merged PRs (${prs.length}):*\n${prLines}`;
+            prSection = `*Merged PRs (${prs.length}):*\n${prLines}`;
           }
         } catch (err) {
           console.error("Failed to fetch merged PRs for status command:", err);
-          prSection = "\n\n_(Couldn't fetch the merged PR list just now -- check Render logs)_";
+          prSection = "_(Couldn't fetch the merged PR list just now -- check Render logs)_";
         }
 
-        await respond(formatReleaseSummary(release) + prSection);
+        // Posted as ONE public message combining the summary, PR list, and
+        // the clickable checklist -- these used to be two separate
+        // messages (a public checklist post plus a private ephemeral
+        // summary), which meant whoever was looking would only ever see
+        // one or the other depending on who they were. A single combined
+        // message removes that ambiguity entirely.
+        await client.chat.postMessage({
+          channel: release.slack_channel,
+          text: "Release status",
+          blocks: [
+            { type: "section", text: { type: "mrkdwn", text: formatReleaseSummary(release) } },
+            { type: "section", text: { type: "mrkdwn", text: prSection } },
+            ...buildChecklistBlocks(release),
+          ],
+        });
+
+        await respond(`Status posted for \`${branch}\`.`);
         return;
       }
 
