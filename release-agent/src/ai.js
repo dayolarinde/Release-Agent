@@ -6,6 +6,14 @@ const { loadReleaseNotesTemplate } = require("./db");
 // confirm what's available on your account/plan.
 const MODEL = process.env.COPILOT_MODEL || "gpt-5";
 
+// How long to wait for a single Copilot response before giving up.
+// Defaulted higher than a typical API call's timeout because this SDK
+// spawns and talks to a CLI subprocess rather than making a plain HTTP
+// request -- cold subprocess starts and model latency can genuinely take
+// longer, especially on a resource-limited host like Render's free tier.
+// Override with COPILOT_TIMEOUT_MS if 60s still isn't enough in practice.
+const TIMEOUT_MS = Number(process.env.COPILOT_TIMEOUT_MS) || 60000;
+
 // The SDK spawns and manages the Copilot CLI as a subprocess. We keep a
 // single client alive for the lifetime of the backend process rather than
 // starting/stopping it per request, since starting it has real overhead.
@@ -47,7 +55,7 @@ function getClient() {
  * payload shape wrong (as happened with the error-handling code below,
  * before this fix).
  */
-async function runPrompt(prompt, timeoutMs = 30000) {
+async function runPrompt(prompt, timeoutMs = TIMEOUT_MS) {
   const client = await getClient();
 
   const session = await client.createSession({
