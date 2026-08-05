@@ -48,7 +48,17 @@ function formatReleaseSummary(release) {
     .map((s) => `${stageIcons[s.status] || "⬜"} ${s.environment}`)
     .join("  →  ");
 
-  return `*Release for \`${release.branch}\`* — status: *${release.status}*\nChecklist: ${done}/${release.checklist.length} complete\nStages: ${stageLine}`;
+  const startedStages = release.stages.filter((s) => s.started_at);
+  let lastMergeLine = "\nLast merge: none yet";
+  if (startedStages.length > 0) {
+    const latest = startedStages.reduce((a, b) =>
+      new Date(a.started_at) > new Date(b.started_at) ? a : b
+    );
+    const when = new Date(latest.started_at).toISOString().slice(0, 16).replace("T", " ");
+    lastMergeLine = `\nLast merge: \`${latest.environment}\` at ${when} UTC`;
+  }
+
+  return `*Release for \`${release.branch}\`* — status: *${release.status}*\nChecklist: ${done}/${release.checklist.length} complete\nStages: ${stageLine}${lastMergeLine}`;
 }
 
 /**

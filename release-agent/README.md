@@ -81,9 +81,10 @@ rather than several out-of-date copies scattered around.
   attaches a Word doc (`.docx`) copy in the thread. Use this if more PRs land on the release branch
   after it was first cut, or whenever you want a downloadable copy of the current notes.
 - `/release status [branch]` — with a branch name, reposts that release's live checklist, shows a
-  status/stage summary, and lists every merged PR currently in the branch (live-fetched from GitHub,
-  same as the changelog). Without a branch, lists every release currently active across all branches
-  (no checklists or PR lists here, to avoid flooding the channel if several releases are in flight).
+  status/stage summary (including when the release last merged into an environment, and which one),
+  and lists every merged PR currently in the branch (live-fetched from GitHub, same as the changelog).
+  Without a branch, lists every release currently active across all branches (no checklists or PR
+  lists here, to avoid flooding the channel if several releases are in flight).
 - `/release rollback <branch>` — reposts the checklist, then manually proposes a rollback for that
   branch's active release (posts a
   confirm button; nothing executes without a click).
