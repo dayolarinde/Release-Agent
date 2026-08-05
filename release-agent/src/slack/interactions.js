@@ -22,7 +22,6 @@ function registerInteractions(app) {
       await db.setReleaseStatus(releaseId, "ready to deploy");
       await client.chat.postMessage({
         channel: release.slack_channel,
-        thread_ts: release.slack_thread_ts,
         text: `:white_check_mark: All checklist items complete for \`${release.branch}\`. Ready to deploy.`,
       });
     }

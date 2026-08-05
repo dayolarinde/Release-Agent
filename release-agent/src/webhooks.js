@@ -91,7 +91,6 @@ function createWebhookRouter(slackClient) {
 
         await slackClient.chat.postMessage({
           channel: release.slack_channel,
-          thread_ts: release.slack_thread_ts,
           text: `:hourglass_flowing_sand: *${environment}* deploy started for \`${branch}\`${prCountText}.${mentionText}`,
         });
       } else if (event_type === "deploy_succeeded") {
@@ -101,7 +100,6 @@ function createWebhookRouter(slackClient) {
 
         await slackClient.chat.postMessage({
           channel: release.slack_channel,
-          thread_ts: release.slack_thread_ts,
           text: isFullyDone
             ? `:tada: *${environment}* deploy succeeded for \`${branch}\` -- that was the last stage, release complete!`
             : `:white_check_mark: *${environment}* deploy succeeded for \`${branch}\`. Next stage is ready when you are.`,
@@ -122,7 +120,6 @@ function createWebhookRouter(slackClient) {
 
         await slackClient.chat.postMessage({
           channel: release.slack_channel,
-          thread_ts: release.slack_thread_ts,
           text: "Deploy failure detected",
           blocks: [
             {

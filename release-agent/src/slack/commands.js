@@ -160,7 +160,6 @@ function registerCommands(app) {
           const docxBuffer = await buildReleaseNotesDocx(branch, changelog);
           await client.files.uploadV2({
             channel_id: release.slack_channel,
-            thread_ts: release.slack_thread_ts,
             file: docxBuffer,
             filename: `${branch}-release-notes.docx`,
             title: `Release notes — ${branch}`,
@@ -169,7 +168,6 @@ function registerCommands(app) {
           console.error("Failed to generate/upload release notes docx:", err);
           await client.chat.postMessage({
             channel: release.slack_channel,
-            thread_ts: release.slack_thread_ts,
             text: ":warning: Release notes updated above, but the Word doc attachment failed to generate. Check Render logs for details.",
           });
         }
@@ -217,7 +215,6 @@ function registerCommands(app) {
         await postChecklistToThread(client, release);
         await client.chat.postMessage({
           channel: release.slack_channel,
-          thread_ts: release.slack_thread_ts,
           text: "Rollback requested",
           blocks: [
             {

@@ -66,6 +66,13 @@ channel view and needs a click to expand; posting it top-level keeps it immediat
 accumulate one per check -- that's the tradeoff for always having a current, clickable, fully-visible
 copy on hand rather than one buried in a thread.
 
+This applies everywhere, not just the checklist: deploy status updates (started/succeeded/failed),
+the rollback request, the "ready to deploy" notice, and the release notes Word doc attachment all post
+as top-level channel messages too, for the same reason. The only thing that still updates a specific
+existing message in place is `/release notes`, which edits the original changelog message directly
+rather than posting a new one -- that's intentional, so there's one current version of the notes
+rather than several out-of-date copies scattered around.
+
 - `/release cut <branch>` — cut a new release for that branch: fetches PRs merged into it, drafts a
   changelog, posts it to the release channel as a thread, and opens the approval checklist. Fails
   clearly if that branch doesn't exist, or if it already has an active release in progress.
