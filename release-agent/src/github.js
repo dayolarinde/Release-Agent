@@ -46,7 +46,8 @@ async function getMergedPRsForBranch(branch) {
       labels: pr.labels.map((l) => l.name),
       url: pr.html_url,
       headRef: pr.head.ref,
-    }));
+    }))
+    .sort((a, b) => a.number - b.number);
 }
 
 /**

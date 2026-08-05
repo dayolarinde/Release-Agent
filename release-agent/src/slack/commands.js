@@ -3,14 +3,16 @@ const { getMergedPRsForBranch, branchExists } = require("../github");
 const { draftChangelog } = require("../ai");
 const { buildReleaseNotesDocx } = require("../release-notes-docx");
 
-function buildChecklistBlocks(release) {
-  const blocks = [
-    {
-      type: "section",
-      text: { type: "mrkdwn", text: `*Release checklist* — branch \`${release.branch}\`` },
-    },
-    { type: "divider" },
-  ];
+function buildChecklistBlocks(release, { includeHeader = true } = {}) {
+  const blocks = includeHeader
+    ? [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: `*Release checklist* — branch \`${release.branch}\`` },
+        },
+        { type: "divider" },
+      ]
+    : [];
 
   for (const item of release.checklist) {
     blocks.push({
@@ -44,9 +46,9 @@ function buildChangelogBlocks(branch, changelog) {
 function formatReleaseSummary(release) {
   const done = release.checklist.filter((i) => i.done).length;
   const stageIcons = { pending: "⬜", deploying: "⏳", deployed: "✅", failed: "🔴" };
-  const stageLine = release.stages
-    .map((s) => `${stageIcons[s.status] || "⬜"} ${s.environment}`)
-    .join("  →  ");
+  const stageLine = release.stages.length > 0
+    ? release.stages.map((s) => `${stageIcons[s.status] || "⬜"} ${s.environment}`).join("  →  ")
+    : "_(no environment stages on this release — it may predate that feature; cut a new release to get stage tracking)_";
 
   const startedStages = release.stages.filter((s) => s.started_at);
   let lastMergeLine = "\nLast merge: none yet";
@@ -230,14 +232,19 @@ function registerCommands(app) {
         // messages (a public checklist post plus a private ephemeral
         // summary), which meant whoever was looking would only ever see
         // one or the other depending on who they were. A single combined
-        // message removes that ambiguity entirely.
+        // message removes that ambiguity entirely. Dividers separate the
+        // three sections, and the checklist's own header is skipped here
+        // since the summary section already names the branch.
         await client.chat.postMessage({
           channel: release.slack_channel,
           text: "Release status",
           blocks: [
             { type: "section", text: { type: "mrkdwn", text: formatReleaseSummary(release) } },
+            { type: "divider" },
             { type: "section", text: { type: "mrkdwn", text: prSection } },
-            ...buildChecklistBlocks(release),
+            { type: "divider" },
+            { type: "section", text: { type: "mrkdwn", text: "*Approval checklist*" } },
+            ...buildChecklistBlocks(release, { includeHeader: false }),
           ],
         });
 
