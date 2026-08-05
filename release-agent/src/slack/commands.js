@@ -197,7 +197,26 @@ function registerCommands(app) {
           return;
         }
         await postChecklistToThread(client, release);
-        await respond(formatReleaseSummary(release));
+
+        // Live PR list, best-effort: a GitHub API hiccup here shouldn't
+        // block the rest of the status response from going out.
+        let prSection;
+        try {
+          const prs = await getMergedPRsForBranch(branch);
+          if (prs.length === 0) {
+            prSection = "\n\n*Merged PRs:* none yet";
+          } else {
+            const prLines = prs
+              .map((pr) => `• <${pr.url}|#${pr.number}> ${pr.title} (${pr.author})`)
+              .join("\n");
+            prSection = `\n\n*Merged PRs (${prs.length}):*\n${prLines}`;
+          }
+        } catch (err) {
+          console.error("Failed to fetch merged PRs for status command:", err);
+          prSection = "\n\n_(Couldn't fetch the merged PR list just now -- check Render logs)_";
+        }
+
+        await respond(formatReleaseSummary(release) + prSection);
         return;
       }
 
